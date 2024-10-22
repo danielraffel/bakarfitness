@@ -1,3 +1,5 @@
+**TL;DR:** Visit [danielraffel.github.io/bakarfitness](danielraffel.github.io/bakarfitness) to check today’s weather conditions for swimming at the rooftop pool at [Bakar Fitness](https://campuslifeserviceshome.ucsf.edu/fitnessrecreation/bakar-fitness-center) in UCSF’s Mission Bay.
+
 # Best Times to Swim at Bakar Fitness Today, Based on Weather Conditions
 
 Swimming on the rooftop at [Bakar Fitness](https://campuslifeserviceshome.ucsf.edu/fitnessrecreation/bakar-fitness-center) in UCSF’s Mission Bay can be a refreshing experience, but it’s essential to know when the weather is most favorable. This tool helps you plan the perfect swim by providing a forecast and suggesting the two best times to swim today based on weather conditions.
