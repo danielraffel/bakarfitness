@@ -31,6 +31,11 @@ The rooftop pool at Bakar Fitness is exposed to wind, and the weather can change
 
 ---
 
+## FYI:
+Weather is only displayed for the current day, from 12:00 AM to 11:59 PM.
+
+---
+
 ## Built With
 - **HTML5 and Tailwind CSS**: For a simple and responsive interface.
 - **Axios**: To fetch real-time weather data from the [Open-Meteo API](https://open-meteo.com/en/docs).
