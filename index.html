@@ -156,7 +156,7 @@
     
     <div>
         <div class="text-sm sm:mt-0 mt-2 sm:mb-6 mb-0 text-center">
-            <a href="https://github.com/danielraffel/bakarfitness" target="_blank" style="text-decoration: underline;">About this Site</a>
+            <a href="https://github.com/danielraffel/ggb" target="_blank" style="text-decoration: underline;">About this Site</a>
         </div>
     </div>
 
@@ -165,11 +165,11 @@
         // Helper functions
         
         function getSwimmingTimeDiff() {
-            return localStorage.getItem('swimmingTimeDiff') || '0h0m';
+            return localStorage.getItem('swimmingTimeDiff_bakar') || '0h0m';
         }
 
         function setSwimmingTimeDiff(value) {
-            localStorage.setItem('swimmingTimeDiff', value);
+            localStorage.setItem('swimmingTimeDiff_bakar', value);
         }
 
         function normalizeTimeDiff(value) {
@@ -249,30 +249,31 @@
         const swimmingMinutesSelect = document.getElementById('swimming-minutes');
 
         function initializePage() {
-            // Remove any stored time diff from localStorage
-            localStorage.removeItem('swimmingTimeDiff');
-
             const now = new Date();
             
-            // Explicitly set swimming time difference to '0h0m'
-            swimmingTimeDiff.value = '0h0m';
-            setSwimmingTimeDiff('0h0m');
+            // Get the stored time diff or use '0h0m' as default
+            const storedTimeDiff = getSwimmingTimeDiff();
+            swimmingTimeDiff.value = storedTimeDiff;
 
-            // Set the swimming time to the current time
-            swimmingTime.value = formatTime(now);
+            // Set the swimming time based on the stored time diff
+            const swimMinutes = parseTimeDiff(storedTimeDiff);
+            const swimAt = new Date(now.getTime() + swimMinutes * 60000);
+            swimmingTime.value = formatTime(swimAt);
 
             // Populate dropdowns
             populateDropdowns(swimmingHoursSelect, swimmingMinutesSelect);
 
-            // Set both mobile dropdowns to 0
-            swimmingHoursSelect.value = '0';
-            swimmingMinutesSelect.value = '0';
+            // Set mobile dropdowns based on stored time diff
+            const hours = Math.floor(swimMinutes / 60);
+            const minutes = swimMinutes % 60;
+            swimmingHoursSelect.value = hours.toString();
+            swimmingMinutesSelect.value = minutes.toString();
 
             // Force an update of all related information
             updateSwimmingInfo();
 
             // Explicitly update weather for current time
-            updateWeather(now);
+            updateWeather(swimAt);
 
             // Call your existing initialization functions here
             fetchWeatherData();
@@ -314,8 +315,9 @@
 
             let swimMinutes = getMinutesBetweenDates(now, swimAt);
 
-            swimmingTimeDiff.value = formatTimeDiff(swimMinutes);
-            setSwimmingTimeDiff(swimmingTimeDiff.value);
+            const timeDiffValue = formatTimeDiff(swimMinutes);
+            swimmingTimeDiff.value = timeDiffValue;
+            setSwimmingTimeDiff(timeDiffValue);
 
             updateSwimmingInfo();
         }
@@ -416,9 +418,7 @@
             minutesSelect.innerHTML = '';
 
             for (let i = 0; i < 24; i++) {
-                const hour = i % 12 || 12;
-                const ampm = i < 12 ? 'AM' : 'PM';
-                hoursSelect.innerHTML += `<option value="${i}">${hour.toString().padStart(2, '0')}:00 ${ampm}</option>`;
+                hoursSelect.innerHTML += `<option value="${i}">${i}h</option>`;
             }
 
             for (let i = 0; i < 60; i++) {
