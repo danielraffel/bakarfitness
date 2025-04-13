@@ -282,7 +282,11 @@
             const dayOfWeek = getDayOfWeek(date);
             const month = date.toLocaleString('default', { month: 'long' });
             const day = date.getDate();
-            return `${dayOfWeek}, ${month} ${day}`;
+            
+            // Get year for display in the chart title
+            const year = date.getFullYear();
+            
+            return `${dayOfWeek}, ${month} ${day} Weather Forecast`;
         }
 
         // DOM elements
@@ -424,11 +428,11 @@
             if (formatDate(selectedDate) === formatDate(today)) {
                 forecastTitle.textContent = "Today's Weather Forecast";
             } else {
-                forecastTitle.textContent = formatDateForDisplay(selectedDate) + " Weather Forecast";
+                forecastTitle.textContent = formatDateForDisplay(selectedDate);
             }
             
             // Fetch weather data for the selected date
-            fetchWeatherData(datePicker.value);
+            fetchWeatherData(formatDate(selectedDate));
             
             // Update swimming info for the new date
             updateSwimmingInfo();
@@ -673,16 +677,28 @@
 
         async function fetchWeatherData(dateStr = null) {
             try {
-                const targetDate = dateStr ? new Date(dateStr) : new Date();
-                const formattedDate = formatDate(targetDate);
+                // If dateStr is provided directly as a formatted string, use it
+                // Otherwise, create a date object and format it
+                let formattedDate;
+                if (dateStr && dateStr.includes('-')) {
+                    formattedDate = dateStr;
+                    var parts = dateStr.split('-');
+                    var targetDate = new Date(parts[0], parts[1] - 1, parts[2]); // month is 0-indexed
+                } else {
+                    targetDate = dateStr ? new Date(dateStr) : new Date();
+                    formattedDate = formatDate(targetDate);
+                }
                 
                 // Update the forecast title
                 const today = new Date();
                 if (formatDate(targetDate) === formatDate(today)) {
                     forecastTitle.textContent = "Today's Weather Forecast";
                 } else {
-                    forecastTitle.textContent = formatDateForDisplay(targetDate) + " Weather Forecast";
+                    forecastTitle.textContent = formatDateForDisplay(targetDate);
                 }
+                
+                // Log the date being requested for debugging
+                console.log("Fetching weather for date:", formattedDate);
                 
                 // Updated coordinates for Mission Bay, San Francisco
                 const response = await axios.get(`https://api.open-meteo.com/v1/forecast?latitude=37.7749&longitude=-122.3890&hourly=temperature_2m,cloudcover,windspeed_10m,precipitation_probability&timezone=America/Los_Angeles&start_date=${formattedDate}&end_date=${formattedDate}&temperature_unit=fahrenheit`);
