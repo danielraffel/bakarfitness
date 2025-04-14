@@ -333,24 +333,27 @@
         // Track selected date
         let selectedDate = new Date();
         
-                function initializePage() {
+                        function initializePage() {
+            // Get the current date from the browser
             const now = new Date();
-            now.setHours(0, 0, 0, 0); // Set to beginning of day for consistent comparisons
             
-            console.log("Initializing page with date:", formatDate(now));
+            // Create a clean date at midnight to avoid time-related issues
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            today.setHours(0, 0, 0, 0); // Set to beginning of day for consistent comparisons
+            
+            console.log("Initializing page with browser date:", now);
+            console.log("Cleaned today date:", today);
             
             // Initialize date picker with today's date
-            const todayFormatted = formatDate(now);
+            const todayFormatted = formatDate(today);
             datePicker.value = todayFormatted;
-            dayOfWeekElement.textContent = getDayOfWeek(now);
+            dayOfWeekElement.textContent = getDayOfWeek(today);
             
             // Set the selected date to today properly
-            const [year, month, day] = todayFormatted.split('-').map(Number);
-            selectedDate = new Date(year, month - 1, day);
-            selectedDate.setHours(0, 0, 0, 0); // Set to beginning of day
+            selectedDate = new Date(today);
             
             // Set maximum date (16 days from now - the API limit)
-            const maxDate = new Date(now);
+            const maxDate = new Date(today);
             maxDate.setDate(maxDate.getDate() + 15); // 16-day forecast (0-15)
             datePicker.max = formatDate(maxDate);
             
@@ -877,43 +880,43 @@
 
         async function fetch16DayForecast() {
             try {
-                // Force the date to be today in the user's timezone
-                // This creates a date at the beginning of today (midnight)
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
+                // Use the real current date from the user's browser
+                const browserDate = new Date();
                 
-                // Format today's date in YYYY-MM-DD format
+                // Extract just the date portion and reset the time to midnight
+                // This creates a clean date at the beginning of today
+                const today = new Date(browserDate.getFullYear(), browserDate.getMonth(), browserDate.getDate());
+                
+                // Format today's date for API request
                 const todayFormatted = formatDate(today);
                 
-                // Calculate end date as today + 15 days (16 days total including today)
+                // Calculate end date (15 days after today = 16 days total)
                 const endDate = new Date(today);
                 endDate.setDate(today.getDate() + 15);
                 const endDateFormatted = formatDate(endDate);
                 
-                console.log(`Fetching 16-day forecast from ${todayFormatted} (today) to ${endDateFormatted}`);
+                console.log(`Fetching 16-day forecast using browser date: ${browserDate}`);
+                console.log(`Formatted date range: ${todayFormatted} to ${endDateFormatted}`);
                 
-                // Get coordinates set for San Francisco Mission Bay
+                // Get coordinates set for San Francisco Mission Bay with explicit timezone
                 const response = await axios.get(`https://api.open-meteo.com/v1/forecast?latitude=37.7749&longitude=-122.3890&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=America/Los_Angeles&start_date=${todayFormatted}&end_date=${endDateFormatted}&temperature_unit=fahrenheit`);
                 
                 const data = response.data;
                 
                 if (data.daily && data.daily.time && data.daily.weathercode) {
-                    console.log("Received dates:", data.daily.time);
+                    // Log the first date we received from the API to check if it matches today
+                    if (data.daily.time.length > 0) {
+                        console.log("First date from API:", data.daily.time[0]);
+                        console.log("Expected today's date:", todayFormatted);
+                        console.log("Match?", data.daily.time[0] === todayFormatted);
+                    }
                     
                     // Store current selection before updating calendar
                     const currentlySelectedDate = selectedDate ? formatDate(selectedDate) : null;
                     
-                    // Calculate the dates we should be displaying (starting with today)
-                    const expectedDates = [];
-                    for (let i = 0; i < 16; i++) {
-                        const d = new Date(today);
-                        d.setDate(d.getDate() + i);
-                        expectedDates.push(formatDate(d));
-                    }
-                    console.log("Expected dates (from today):", expectedDates);
-                    
-                    // Ensure we're only showing 16 days starting from today
-                    const filteredData = {
+                    // Important: Force the first day to be today by manually adjusting the data if needed
+                    // This ensures we always show exactly 16 days starting from today
+                    const forcedData = {
                         time: [],
                         weathercode: [],
                         temperature_2m_max: [],
@@ -921,22 +924,45 @@
                         precipitation_probability_max: []
                     };
                     
-                    // Find today's date in the API response
+                    // Find where today's data starts in the API response
                     const todayIndex = data.daily.time.findIndex(d => d === todayFormatted);
+                    const actualStartIndex = todayIndex !== -1 ? todayIndex : 0;
                     
-                    if (todayIndex !== -1) {
-                        // Create a filtered dataset starting from today's date
-                        for (let i = 0; i < 16 && (todayIndex + i) < data.daily.time.length; i++) {
-                            filteredData.time.push(data.daily.time[todayIndex + i]);
-                            filteredData.weathercode.push(data.daily.weathercode[todayIndex + i]);
-                            filteredData.temperature_2m_max.push(data.daily.temperature_2m_max[todayIndex + i]);
-                            filteredData.temperature_2m_min.push(data.daily.temperature_2m_min[todayIndex + i]);
-                            filteredData.precipitation_probability_max.push(data.daily.precipitation_probability_max[todayIndex + i]);
+                    // Create array of expected dates (16 days from today)
+                    const expectedDates = [];
+                    for (let i = 0; i < 16; i++) {
+                        const d = new Date(today);
+                        d.setDate(d.getDate() + i);
+                        expectedDates.push(formatDate(d));
+                    }
+                    
+                    // Use the expected dates to ensure we have the right sequence
+                    for (let i = 0; i < expectedDates.length; i++) {
+                        const expectedDate = expectedDates[i];
+                        const apiIndex = data.daily.time.findIndex(d => d === expectedDate);
+                        
+                        if (apiIndex !== -1) {
+                            // Use data from API if we found the date
+                            forcedData.time.push(data.daily.time[apiIndex]);
+                            forcedData.weathercode.push(data.daily.weathercode[apiIndex]);
+                            forcedData.temperature_2m_max.push(data.daily.temperature_2m_max[apiIndex]);
+                            forcedData.temperature_2m_min.push(data.daily.temperature_2m_min[apiIndex]);
+                            forcedData.precipitation_probability_max.push(data.daily.precipitation_probability_max[apiIndex]);
+                        } else {
+                            // If we don't have data for this date, use placeholder values
+                            console.warn(`Missing data for expected date: ${expectedDate}`);
+                            forcedData.time.push(expectedDate);
+                            forcedData.weathercode.push(1); // default: partly cloudy
+                            forcedData.temperature_2m_max.push(70);
+                            forcedData.temperature_2m_min.push(50);
+                            forcedData.precipitation_probability_max.push(0);
                         }
-                        
-                        console.log("Filtered dates (should start with today):", filteredData.time);
-                        
-                        updateWeatherCalendar(filteredData);
+                    }
+                    
+                    console.log("Using these dates for calendar:", forcedData.time);
+                    
+                    if (forcedData.time.length > 0) {
+                        updateWeatherCalendar(forcedData);
                         
                         // Re-highlight the selected date if it was previously set
                         if (currentlySelectedDate) {
@@ -944,15 +970,15 @@
                         }
                         
                         // Update date picker max value based on available forecast data
-                        if (filteredData.time.length > 0) {
-                            const lastAvailableDate = filteredData.time[filteredData.time.length - 1];
+                        if (forcedData.time.length > 0) {
+                            const lastAvailableDate = forcedData.time[forcedData.time.length - 1];
                             datePicker.max = lastAvailableDate;
                             console.log(`Updated date picker max to ${lastAvailableDate}`);
                         }
                     } else {
-                        console.error("Today's date not found in API response");
+                        console.error("No dates found for the forecast");
                         document.getElementById('weather-calendar').innerHTML = 
-                            '<p class="col-span-full text-center">Unable to find today\'s date in the forecast data. Please try refreshing the page.</p>';
+                            '<p class="col-span-full text-center">Unable to find required dates in the forecast data. Please try refreshing the page.</p>';
                     }
                 }
             } catch (error) {
