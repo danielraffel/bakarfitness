@@ -461,6 +461,8 @@
             // Create date using year, month (0-indexed), day to avoid timezone issues
             selectedDate = new Date(year, month - 1, day);
             
+            console.log("Date changed to:", selectedDate.toDateString());
+            
             // Update the day of week display
             dayOfWeekElement.textContent = getDayOfWeek(selectedDate);
             
@@ -480,28 +482,73 @@
             
             // Highlight selected day in calendar
             highlightSelectedDayInCalendar();
+            
+            // Update best swim time display with selected date info
+            updateBestSwimTimeDisplay(selectedDate);
         }
         
-        function highlightSelectedDayInCalendar() {
+        function updateBestSwimTimeDisplay(date) {
+            // This ensures the best swim time displays reflect the correct date
+            // even if the actual data hasn't been fetched yet
+            const bestTimeHeaders = document.querySelectorAll('#best-time-info-1 li:first-child, #best-time-info-2 li:first-child');
+            
+            // Only update if there are existing best time elements
+            bestTimeHeaders.forEach(header => {
+                // Extract the time part and update the date part
+                const timeMatch = header.textContent.match(/(.*?)(Today|Tomorrow|on .+)$/);
+                if (timeMatch) {
+                    const timePart = timeMatch[1].trim();
+                    
+                    // Determine date descriptor (Today, Tomorrow, or date)
+                    const today = new Date();
+                    const tomorrow = new Date(today);
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    
+                    let dateDesc;
+                    if (formatDate(date) === formatDate(today)) {
+                        dateDesc = 'Today';
+                    } else if (formatDate(date) === formatDate(tomorrow)) {
+                        dateDesc = 'Tomorrow';
+                    } else {
+                        const month = date.toLocaleString('default', { month: 'short' });
+                        const day = date.getDate();
+                        dateDesc = `on ${month} ${day}`;
+                    }
+                    
+                    header.textContent = `${timePart} ${dateDesc}`;
+                }
+            });
+        }
+        
+        function highlightSelectedDayInCalendar(specificDate = null) {
             // Remove highlighting from all cells
             const calendarCells = document.querySelectorAll('#weather-calendar > div');
+            const today = new Date();
+            const todayStr = formatDate(today);
+            const dateToHighlight = specificDate || formatDate(selectedDate);
+            
+            console.log("Highlighting date:", dateToHighlight, "Today is:", todayStr);
+            
             calendarCells.forEach(cell => {
-                cell.classList.remove('border-2', 'border-green-500');
-                if (cell.dataset.date === formatDate(new Date())) {
-                    cell.classList.add('border-2', 'border-blue-500');
-                } else {
-                    cell.classList.remove('border-2', 'border-blue-500');
+                // Reset all cells first
+                cell.classList.remove('border-2', 'border-green-500', 'border-blue-500');
+                
+                // If this is today's cell
+                if (cell.dataset.date === todayStr) {
+                    // Only add blue border if it's not the selected date
+                    if (cell.dataset.date !== dateToHighlight) {
+                        cell.classList.add('border-2', 'border-blue-500');
+                    }
                 }
             });
             
             // Add highlighting to selected cell
             const selectedCell = Array.from(calendarCells).find(
-                cell => cell.dataset.date === formatDate(selectedDate)
+                cell => cell.dataset.date === dateToHighlight
             );
             
             if (selectedCell) {
                 selectedCell.classList.add('border-2', 'border-green-500');
-                selectedCell.classList.remove('border-blue-500');
                 
                 // Scroll to make selected cell visible if needed
                 selectedCell.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -526,6 +573,7 @@
 
         // Consolidated initialization into a single DOM content loaded event listener
         document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOM content loaded, initializing page...");
             initializePage();
             applyTheme();
             startWeatherUpdate();
@@ -536,6 +584,14 @@
             if (ggbImage) {
                 ggbImage.onload = updateGGBImage;
                 setInterval(updateGGBImage, 30 * 1000);
+            }
+        });
+
+        // Listen for changes to the selected date from other sources
+        window.addEventListener('dateselected', (event) => {
+            if (event.detail && event.detail.date) {
+                console.log("Date selected event triggered:", event.detail.date);
+                highlightSelectedDayInCalendar(event.detail.date);
             }
         });
 
@@ -763,7 +819,15 @@
                 const data = response.data;
                 
                 if (data.daily && data.daily.time && data.daily.weathercode) {
+                    // Store current selection before updating calendar
+                    const currentlySelectedDate = selectedDate ? formatDate(selectedDate) : null;
+                    
                     updateWeatherCalendar(data.daily);
+                    
+                    // Re-highlight the selected date if it was previously set
+                    if (currentlySelectedDate) {
+                        highlightSelectedDayInCalendar(currentlySelectedDate);
+                    }
                     
                     // Update date picker max value based on available forecast data
                     if (data.daily.time.length > 0) {
@@ -991,26 +1055,14 @@
                 // Create the formatted time with day information
                 let formattedTime = `${hours12}:${minutes}${ampm}`;
                 
-                // Add day information
-                const today = new Date();
-                const tomorrow = new Date(today);
-                tomorrow.setDate(tomorrow.getDate() + 1);
+                // Add day information based on the selected date (not the time's date)
+                // This ensures consistency across the UI
+                let dateToDisplay = selectedDate || new Date();
                 
-                // Format today and tomorrow dates for comparison
-                const todayStr = formatDate(today);
-                const tomorrowStr = formatDate(tomorrow);
-                const timeStr = formatDate(time);
-                
-                if (timeStr === todayStr) {
-                    formattedTime += ' Today';
-                } else if (timeStr === tomorrowStr) {
-                    formattedTime += ' Tomorrow';
-                } else {
-                    // Use month and day for other days
-                    const month = time.toLocaleString('default', { month: 'short' });
-                    const day = time.getDate();
-                    formattedTime += ` on ${month} ${day}`;
-                }
+                // Format the display date to match the current selected date
+                const formattedMonth = dateToDisplay.toLocaleString('default', { month: 'short' });
+                const formattedDay = dateToDisplay.getDate();
+                formattedTime += ` on ${formattedMonth} ${formattedDay}`;
 
                 const windSpeedMph = (data.windSpeed[i] * 0.621371).toFixed(1);
 
@@ -1063,6 +1115,21 @@
                 99: { emoji: '⛈️', description: 'Thunderstorm with heavy hail' },
             };
             
+            // Format for display
+            function formatCalendarDate(dateObj) {
+                const dayOfWeek = getDayOfWeek(dateObj).substring(0, 3);
+                const month = dateObj.toLocaleString('default', { month: 'short' });
+                const day = dateObj.getDate();
+                return `${dayOfWeek}, ${month} ${day}`;
+            }
+            
+            // Today's date for comparison
+            const today = new Date();
+            const todayStr = formatDate(today);
+            
+            // Currently selected date (if any)
+            const selectedDateStr = selectedDate ? formatDate(selectedDate) : null;
+            
             // Create a calendar cell for each day
             for (let i = 0; i < dailyData.time.length && i < 16; i++) {
                 const dateStr = dailyData.time[i];
@@ -1075,28 +1142,26 @@
                 
                 // Create date object to get day and month
                 const dateObj = new Date(dateStr);
-                const dayOfMonth = dateObj.getDate();
-                const month = dateObj.toLocaleString('default', { month: 'short' });
-                const dayOfWeek = getDayOfWeek(dateObj).substring(0, 3);
+                
+                // Use our custom formatter for more consistent display
+                const formattedDate = formatCalendarDate(dateObj);
                 
                 // Create calendar cell
                 const cell = document.createElement('div');
                 cell.className = 'bg-gray-50 rounded p-2 text-center hover:bg-gray-100 cursor-pointer';
                 cell.dataset.date = dateStr; // Store date for selection highlighting
                 
-                // Highlight today
-                if (formatDate(dateObj) === formatDate(new Date())) {
+                // Add borders based on selection status
+                if (dateStr === selectedDateStr) {
+                    // Selected date gets green border
+                    cell.className += ' border-2 border-green-500';
+                } else if (dateStr === todayStr) {
+                    // Today gets blue border (if not selected)
                     cell.className += ' border-2 border-blue-500';
                 }
                 
-                // Highlight selected date
-                if (selectedDate && formatDate(dateObj) === formatDate(selectedDate)) {
-                    cell.className = cell.className.replace('border-blue-500', '');
-                    cell.className += ' border-2 border-green-500';
-                }
-                
                 cell.innerHTML = `
-                    <div class="text-xs font-semibold">${dayOfWeek}, ${month} ${dayOfMonth}</div>
+                    <div class="text-xs font-semibold">${formattedDate}</div>
                     <div class="text-3xl my-1" title="${weatherInfo.description}">${weatherInfo.emoji}</div>
                     <div class="text-xs">
                         <span class="text-red-500">${Math.round(maxTemp)}°F</span> / 
