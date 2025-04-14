@@ -265,6 +265,7 @@
 
         // Format date as YYYY-MM-DD
         function formatDate(date) {
+            // To avoid timezone issues, use UTC methods
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
@@ -306,8 +307,13 @@
             const now = new Date();
             
             // Initialize date picker with today's date
-            datePicker.value = formatDate(now);
+            const todayFormatted = formatDate(now);
+            datePicker.value = todayFormatted;
             dayOfWeekElement.textContent = getDayOfWeek(now);
+            
+            // Set the selected date to today properly
+            const [year, month, day] = todayFormatted.split('-').map(Number);
+            selectedDate = new Date(year, month - 1, day);
             
             // Set maximum date (7 days from now)
             const maxDate = new Date(now);
@@ -315,7 +321,7 @@
             datePicker.max = formatDate(maxDate);
             
             // Set minimum date (today)
-            datePicker.min = formatDate(now);
+            datePicker.min = todayFormatted;
             
             // Get the stored time diff or use '0h0m' as default
             const storedTimeDiff = getSwimmingTimeDiff();
@@ -417,8 +423,12 @@
         }
 
         function handleDateChange() {
-            // Update the selected date
-            selectedDate = new Date(datePicker.value);
+            // Parse the date value properly to avoid timezone issues
+            // Format is YYYY-MM-DD from the date picker
+            const [year, month, day] = datePicker.value.split('-').map(Number);
+            
+            // Create date using year, month (0-indexed), day to avoid timezone issues
+            selectedDate = new Date(year, month - 1, day);
             
             // Update the day of week display
             dayOfWeekElement.textContent = getDayOfWeek(selectedDate);
@@ -677,17 +687,35 @@
 
         async function fetchWeatherData(dateStr = null) {
             try {
-                // If dateStr is provided directly as a formatted string, use it
-                // Otherwise, create a date object and format it
-                let formattedDate;
-                if (dateStr && dateStr.includes('-')) {
-                    formattedDate = dateStr;
-                    var parts = dateStr.split('-');
-                    var targetDate = new Date(parts[0], parts[1] - 1, parts[2]); // month is 0-indexed
+                // For debugging
+                console.log("fetchWeatherData called with dateStr:", dateStr);
+                
+                let targetDate, formattedDate;
+                
+                // Handle different formats of input
+                if (dateStr) {
+                    if (dateStr.includes('-')) {
+                        // It's already in YYYY-MM-DD format
+                        formattedDate = dateStr;
+                        
+                        // Manually create date to avoid timezone issues
+                        const [year, month, day] = dateStr.split('-').map(Number);
+                        targetDate = new Date(year, month - 1, day);
+                        
+                        console.log("Created date from components:", targetDate.toDateString());
+                    } else {
+                        // It's a Date object or other format
+                        targetDate = new Date(dateStr);
+                        formattedDate = formatDate(targetDate);
+                    }
                 } else {
-                    targetDate = dateStr ? new Date(dateStr) : new Date();
+                    // No date provided, use current date
+                    targetDate = new Date();
                     formattedDate = formatDate(targetDate);
                 }
+                
+                console.log("Target date:", targetDate.toDateString());
+                console.log("Formatted date for API:", formattedDate);
                 
                 // Update the forecast title
                 const today = new Date();
