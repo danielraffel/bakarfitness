@@ -334,8 +334,11 @@
         // Track selected date
         let selectedDate = new Date();
         
-        function initializePage() {
+                function initializePage() {
             const now = new Date();
+            now.setHours(0, 0, 0, 0); // Set to beginning of day for consistent comparisons
+            
+            console.log("Initializing page with date:", formatDate(now));
             
             // Initialize date picker with today's date
             const todayFormatted = formatDate(now);
@@ -345,6 +348,7 @@
             // Set the selected date to today properly
             const [year, month, day] = todayFormatted.split('-').map(Number);
             selectedDate = new Date(year, month - 1, day);
+            selectedDate.setHours(0, 0, 0, 0); // Set to beginning of day
             
             // Set maximum date (16 days from now - the API limit)
             const maxDate = new Date(now);
@@ -360,7 +364,8 @@
 
             // Set the swimming time based on the stored time diff
             const swimMinutes = parseTimeDiff(storedTimeDiff);
-            const swimAt = new Date(now.getTime() + swimMinutes * 60000);
+            const currentTime = new Date();
+            const swimAt = new Date(currentTime.getTime() + swimMinutes * 60000);
             swimmingTime.value = formatTime(swimAt);
 
             // Populate dropdowns
@@ -378,8 +383,11 @@
             // Explicitly update weather for current time
             updateWeather(swimAt);
 
-            // Call your existing initialization functions here
+            // Call other initialization functions
             fetchWeatherData(formatDate(selectedDate));
+            
+            // Update all forecast date information for consistency
+            updateForecastDateInfo();
         }
 
         function updateSwimmingInfo() {
@@ -461,13 +469,15 @@
             // Create date using year, month (0-indexed), day to avoid timezone issues
             selectedDate = new Date(year, month - 1, day);
             
-            console.log("Date changed to:", selectedDate.toDateString());
+            console.log("Date changed to:", selectedDate.toDateString(), "Date value:", datePicker.value);
             
             // Update the day of week display
             dayOfWeekElement.textContent = getDayOfWeek(selectedDate);
             
             // Update the forecast title
             const today = new Date();
+            today.setHours(0, 0, 0, 0); // Set to beginning of day
+            
             if (formatDate(selectedDate) === formatDate(today)) {
                 forecastTitle.textContent = "Today's Weather Forecast";
             } else {
@@ -480,11 +490,20 @@
             // Update swimming info for the new date
             updateSwimmingInfo();
             
-            // Highlight selected day in calendar
-            highlightSelectedDayInCalendar();
+            // Highlight selected day in calendar - use the date value directly
+            highlightSelectedDayInCalendar(datePicker.value);
             
             // Update best swim time display with selected date info
             updateBestSwimTimeDisplay(selectedDate);
+            
+            // Dispatch a custom event that other components can listen for
+            const event = new CustomEvent('dateselectedbyuser', { 
+                detail: { 
+                    date: datePicker.value,
+                    dateObj: selectedDate
+                } 
+            });
+            window.dispatchEvent(event);
         }
         
         function updateBestSwimTimeDisplay(date) {
@@ -577,7 +596,11 @@
             initializePage();
             applyTheme();
             startWeatherUpdate();
-            fetch16DayForecast();
+            
+            // Fetch forecast data with explicit today filtering
+            setTimeout(() => {
+                fetch16DayForecast();
+            }, 100); // Small delay to ensure other initialization is complete
             
             // Set up the image update if the element exists
             const ggbImage = document.getElementById('ggb-image');
@@ -585,13 +608,63 @@
                 ggbImage.onload = updateGGBImage;
                 setInterval(updateGGBImage, 30 * 1000);
             }
+            
+            // Set up automatic update of date related info every 30 seconds
+            // This ensures everything stays in sync
+            setInterval(updateForecastDateInfo, 30000);
         });
 
-        // Listen for changes to the selected date from other sources
-        window.addEventListener('dateselected', (event) => {
-            if (event.detail && event.detail.date) {
-                console.log("Date selected event triggered:", event.detail.date);
-                highlightSelectedDayInCalendar(event.detail.date);
+        function updateForecastDateInfo() {
+            // Synchronize all date-related info on the page
+            const currentDate = selectedDate || new Date();
+            
+            // Update date picker
+            datePicker.value = formatDate(currentDate);
+            
+            // Update day of week
+            dayOfWeekElement.textContent = getDayOfWeek(currentDate);
+            
+            // Update the forecast title
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Set to beginning of day
+            
+            if (formatDate(currentDate) === formatDate(today)) {
+                forecastTitle.textContent = "Today's Weather Forecast";
+            } else {
+                forecastTitle.textContent = formatDateForDisplay(currentDate);
+            }
+            
+            // Highlight the correct calendar date
+            highlightSelectedDayInCalendar(formatDate(currentDate));
+            
+            // Update best swim time display
+            updateBestSwimTimeDisplay(currentDate);
+        }
+        
+        // Listen for clicks on calendar day cells
+        document.addEventListener('click', function(event) {
+            // Find if a calendar cell was clicked
+            let calendarCell = null;
+            let target = event.target;
+            
+            // Traverse up to find the calendar cell
+            while (target && target !== document) {
+                if (target.parentElement && target.parentElement.id === 'weather-calendar') {
+                    calendarCell = target;
+                    break;
+                }
+                target = target.parentElement;
+            }
+            
+            // If a calendar cell was clicked and it has a date
+            if (calendarCell && calendarCell.dataset.date) {
+                console.log("Calendar cell clicked with date:", calendarCell.dataset.date);
+                
+                // Update the date picker
+                datePicker.value = calendarCell.dataset.date;
+                
+                // Trigger the date change handler
+                handleDateChange();
             }
         });
 
@@ -803,12 +876,16 @@
 
         async function fetch16DayForecast() {
             try {
+                // Ensure we always start with today's date
                 const now = new Date();
-                const endDate = new Date(now);
-                endDate.setDate(endDate.getDate() + 15); // 16 days total (0-15)
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                
+                // Calculate end date as 15 days from today (for a total of 16 days including today)
+                const endDate = new Date(today);
+                endDate.setDate(today.getDate() + 15); // 16 days total (0-15)
                 
                 // Format dates for API
-                const startDateFormatted = formatDate(now);
+                const startDateFormatted = formatDate(today);
                 const endDateFormatted = formatDate(endDate);
                 
                 console.log(`Fetching 16-day forecast from ${startDateFormatted} to ${endDateFormatted}`);
@@ -819,21 +896,62 @@
                 const data = response.data;
                 
                 if (data.daily && data.daily.time && data.daily.weathercode) {
+                    // Filter the data to ensure we only show forecasts from today onwards
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0); // Set to beginning of day
+                    
+                    const todayStr = formatDate(today);
+                    
+                    console.log("Today's date for filtering:", todayStr);
+                    
+                    // Create filtered data with only dates from today onwards
+                    const filteredData = {
+                        time: [],
+                        weathercode: [],
+                        temperature_2m_max: [],
+                        temperature_2m_min: [],
+                        precipitation_probability_max: []
+                    };
+                    
+                    let foundToday = false;
+                    for (let i = 0; i < data.daily.time.length; i++) {
+                        const dateStr = data.daily.time[i];
+                        const date = new Date(dateStr + "T00:00:00"); // Ensure proper date parsing
+                        date.setHours(0, 0, 0, 0); // Set to beginning of day
+                        
+                        if (date >= today) {
+                            filteredData.time.push(dateStr);
+                            filteredData.weathercode.push(data.daily.weathercode[i]);
+                            filteredData.temperature_2m_max.push(data.daily.temperature_2m_max[i]);
+                            filteredData.temperature_2m_min.push(data.daily.temperature_2m_min[i]);
+                            filteredData.precipitation_probability_max.push(data.daily.precipitation_probability_max[i]);
+                            
+                            foundToday = true;
+                        }
+                    }
+                    
+                    console.log("Filtered data from today onwards:", filteredData.time);
+                    
                     // Store current selection before updating calendar
                     const currentlySelectedDate = selectedDate ? formatDate(selectedDate) : null;
                     
-                    updateWeatherCalendar(data.daily);
-                    
-                    // Re-highlight the selected date if it was previously set
-                    if (currentlySelectedDate) {
-                        highlightSelectedDayInCalendar(currentlySelectedDate);
-                    }
-                    
-                    // Update date picker max value based on available forecast data
-                    if (data.daily.time.length > 0) {
-                        const lastAvailableDate = data.daily.time[data.daily.time.length - 1];
-                        datePicker.max = lastAvailableDate;
-                        console.log(`Updated date picker max to ${lastAvailableDate}`);
+                    // Only update if we found today in the data
+                    if (foundToday && filteredData.time.length > 0) {
+                        updateWeatherCalendar(filteredData);
+                        
+                        // Re-highlight the selected date if it was previously set
+                        if (currentlySelectedDate) {
+                            highlightSelectedDayInCalendar(currentlySelectedDate);
+                        }
+                        
+                        // Update date picker max value based on available forecast data
+                        if (filteredData.time.length > 0) {
+                            const lastAvailableDate = filteredData.time[filteredData.time.length - 1];
+                            datePicker.max = lastAvailableDate;
+                            console.log(`Updated date picker max to ${lastAvailableDate}`);
+                        }
+                    } else {
+                        console.error("Could not find today's date in forecast data");
                     }
                 }
             } catch (error) {
