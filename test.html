@@ -41,6 +41,19 @@
             background-color: #2a2a2a;
         }
 
+        body.night-mode .bg-gray-50 {
+            background-color: #333333;
+            color: #f0f0f0;
+        }
+
+        body.night-mode .bg-gray-100 {
+            background-color: #3a3a3a;
+        }
+
+        body.night-mode .hover\:bg-gray-100:hover {
+            background-color: #444444;
+        }
+
         body.night-mode input,
         body.night-mode select {
             background-color: #3a3a3a;
@@ -50,6 +63,14 @@
 
         body.night-mode .shadow-md {
             box-shadow: 0 4px 6px -1px rgba(255, 255, 255, 0.1), 0 2px 4px -1px rgba(255, 255, 255, 0.06);
+        }
+
+        body.night-mode .text-gray-500 {
+            color: #aaaaaa;
+        }
+        
+        body.night-mode .text-gray-600 {
+            color: #cccccc;
         }
 
         @media (max-width: 640px) {
@@ -86,6 +107,10 @@
 
             .chart-wrapper {
                 max-height: 250px !important;
+            }
+            
+            #weather-calendar {
+                font-size: 0.9rem;
             }
         }
     </style>
@@ -173,6 +198,12 @@
             <div class="chart-wrapper" style="position: relative; height: 40vh; max-height: 300px;">
                 <canvas id="weatherChart"></canvas>
             </div>
+        </div>
+        
+        <!-- 16-Day Weather Calendar -->
+        <div class="calendar-container bg-white shadow-md rounded-lg p-6 mt-4 sm:mt-6">
+            <h2 class="text-1xl font-semibold mb-4">16-Day Weather Forecast</h2>
+            <div id="weather-calendar" class="grid grid-cols-4 sm:grid-cols-7 md:grid-cols-8 gap-2"></div>
         </div>
     </div>
     
@@ -315,9 +346,9 @@
             const [year, month, day] = todayFormatted.split('-').map(Number);
             selectedDate = new Date(year, month - 1, day);
             
-            // Set maximum date (7 days from now)
+            // Set maximum date (16 days from now - the API limit)
             const maxDate = new Date(now);
-            maxDate.setDate(maxDate.getDate() + 6); // 7-day forecast (0-6)
+            maxDate.setDate(maxDate.getDate() + 15); // 16-day forecast (0-15)
             datePicker.max = formatDate(maxDate);
             
             // Set minimum date (today)
@@ -351,135 +382,6 @@
             fetchWeatherData(formatDate(selectedDate));
         }
 
-        function updateSwimmingInfo() {
-            const now = new Date();
-            let swimMinutes = parseTimeDiff(swimmingTimeDiff.value);
-            
-            // Use the selected date instead of today for the target time
-            let swimAt = new Date(selectedDate);
-            swimAt.setHours(now.getHours(), now.getMinutes() + swimMinutes, 0, 0);
-
-            // Ensure swimAt is not before now if the selected date is today
-            if (formatDate(selectedDate) === formatDate(now) && swimAt < now) {
-                provideFeedback(swimmingTime);
-                swimAt = new Date(now);
-            }
-
-            // Ensure swimAt is not after 11:59 PM on the selected date
-            const endOfSelectedDay = new Date(selectedDate);
-            endOfSelectedDay.setHours(23, 59, 0, 0);
-            
-            if (swimAt > endOfSelectedDay) {
-                provideFeedback(swimmingTime);
-                swimAt = new Date(endOfSelectedDay);
-            }
-
-            // If selected date is today, calculate minutes from now
-            if (formatDate(selectedDate) === formatDate(now)) {
-                swimMinutes = getMinutesBetweenDates(now, swimAt);
-                swimmingTimeDiff.value = normalizeTimeDiff(formatTimeDiff(swimMinutes));
-            }
-            
-            swimmingTime.value = formatTime(swimAt);
-
-            updateAllInputs();
-            updateWeather(swimAt);
-        }
-
-        function handleSwimmingTimeChange() {
-            const [hours, minutes] = swimmingTime.value.split(':');
-            
-            // Create a new date with the selected date and specified time
-            let swimAt = new Date(selectedDate);
-            swimAt.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-
-            const now = new Date();
-            
-            // Ensure swimAt is not before now if the selected date is today
-            if (formatDate(selectedDate) === formatDate(now) && swimAt < now) {
-                provideFeedback(swimmingTime);
-                swimAt = new Date(now);
-                swimmingTime.value = formatTime(swimAt);
-            }
-
-            // If selected date is today, calculate minutes from now
-            if (formatDate(selectedDate) === formatDate(now)) {
-                let swimMinutes = getMinutesBetweenDates(now, swimAt);
-                const timeDiffValue = formatTimeDiff(swimMinutes);
-                swimmingTimeDiff.value = timeDiffValue;
-                setSwimmingTimeDiff(timeDiffValue);
-            }
-
-            updateSwimmingInfo();
-        }
-
-        function handleMobileSwimmingChange() {
-            const hours = parseInt(swimmingHoursSelect.value);
-            const minutes = parseInt(swimmingMinutesSelect.value);
-            const value = formatTimeDiff(hours * 60 + minutes);
-            swimmingTimeDiff.value = value;
-            setSwimmingTimeDiff(value);
-            updateSwimmingInfo();
-        }
-
-        function handleDateChange() {
-            // Parse the date value properly to avoid timezone issues
-            // Format is YYYY-MM-DD from the date picker
-            const [year, month, day] = datePicker.value.split('-').map(Number);
-            
-            // Create date using year, month (0-indexed), day to avoid timezone issues
-            selectedDate = new Date(year, month - 1, day);
-            
-            // Update the day of week display
-            dayOfWeekElement.textContent = getDayOfWeek(selectedDate);
-            
-            // Update the forecast title
-            const today = new Date();
-            if (formatDate(selectedDate) === formatDate(today)) {
-                forecastTitle.textContent = "Today's Weather Forecast";
-            } else {
-                forecastTitle.textContent = formatDateForDisplay(selectedDate);
-            }
-            
-            // Fetch weather data for the selected date
-            fetchWeatherData(formatDate(selectedDate));
-            
-            // Update swimming info for the new date
-            updateSwimmingInfo();
-        }
-
-        // Event listeners
-        swimmingTimeDiff.addEventListener('change', () => {
-            setSwimmingTimeDiff(swimmingTimeDiff.value);
-            updateSwimmingInfo();
-        });
-
-        swimmingTime.addEventListener('change', handleSwimmingTimeChange);
-
-        swimmingHoursSelect.addEventListener('change', handleMobileSwimmingChange);
-        swimmingMinutesSelect.addEventListener('change', handleMobileSwimmingChange);
-
-        datePicker.addEventListener('change', handleDateChange);
-
-        // Remove any previous initialization calls
-        document.removeEventListener('DOMContentLoaded', initializePage);
-
-        // Consolidated initialization into a single DOM content loaded event listener
-        document.addEventListener('DOMContentLoaded', () => {
-            initializePage();
-            applyTheme();
-            startWeatherUpdate();
-            
-            // Set up the image update if the element exists
-            const ggbImage = document.getElementById('ggb-image');
-            if (ggbImage) {
-                ggbImage.onload = updateGGBImage;
-                setInterval(updateGGBImage, 30 * 1000);
-            }
-        });
-
-        // Main logic functions
-        
         function updateSwimmingInfo() {
             const now = new Date();
             let swimMinutes = parseTimeDiff(swimmingTimeDiff.value);
@@ -551,6 +453,94 @@
             updateSwimmingInfo();
         }
 
+        function handleDateChange() {
+            // Parse the date value properly to avoid timezone issues
+            // Format is YYYY-MM-DD from the date picker
+            const [year, month, day] = datePicker.value.split('-').map(Number);
+            
+            // Create date using year, month (0-indexed), day to avoid timezone issues
+            selectedDate = new Date(year, month - 1, day);
+            
+            // Update the day of week display
+            dayOfWeekElement.textContent = getDayOfWeek(selectedDate);
+            
+            // Update the forecast title
+            const today = new Date();
+            if (formatDate(selectedDate) === formatDate(today)) {
+                forecastTitle.textContent = "Today's Weather Forecast";
+            } else {
+                forecastTitle.textContent = formatDateForDisplay(selectedDate);
+            }
+            
+            // Fetch weather data for the selected date
+            fetchWeatherData(formatDate(selectedDate));
+            
+            // Update swimming info for the new date
+            updateSwimmingInfo();
+            
+            // Highlight selected day in calendar
+            highlightSelectedDayInCalendar();
+        }
+        
+        function highlightSelectedDayInCalendar() {
+            // Remove highlighting from all cells
+            const calendarCells = document.querySelectorAll('#weather-calendar > div');
+            calendarCells.forEach(cell => {
+                cell.classList.remove('border-2', 'border-green-500');
+                if (cell.dataset.date === formatDate(new Date())) {
+                    cell.classList.add('border-2', 'border-blue-500');
+                } else {
+                    cell.classList.remove('border-2', 'border-blue-500');
+                }
+            });
+            
+            // Add highlighting to selected cell
+            const selectedCell = Array.from(calendarCells).find(
+                cell => cell.dataset.date === formatDate(selectedDate)
+            );
+            
+            if (selectedCell) {
+                selectedCell.classList.add('border-2', 'border-green-500');
+                selectedCell.classList.remove('border-blue-500');
+                
+                // Scroll to make selected cell visible if needed
+                selectedCell.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        // Event listeners
+        swimmingTimeDiff.addEventListener('change', () => {
+            setSwimmingTimeDiff(swimmingTimeDiff.value);
+            updateSwimmingInfo();
+        });
+
+        swimmingTime.addEventListener('change', handleSwimmingTimeChange);
+
+        swimmingHoursSelect.addEventListener('change', handleMobileSwimmingChange);
+        swimmingMinutesSelect.addEventListener('change', handleMobileSwimmingChange);
+
+        datePicker.addEventListener('change', handleDateChange);
+
+        // Remove any previous initialization calls
+        document.removeEventListener('DOMContentLoaded', initializePage);
+
+        // Consolidated initialization into a single DOM content loaded event listener
+        document.addEventListener('DOMContentLoaded', () => {
+            initializePage();
+            applyTheme();
+            startWeatherUpdate();
+            fetch16DayForecast();
+            
+            // Set up the image update if the element exists
+            const ggbImage = document.getElementById('ggb-image');
+            if (ggbImage) {
+                ggbImage.onload = updateGGBImage;
+                setInterval(updateGGBImage, 30 * 1000);
+            }
+        });
+
+        // Main logic functions
+        
         function updateSingleInput(timeDiffInput, hoursSelect, minutesSelect) {
             const hours = parseInt(hoursSelect.value);
             const minutes = parseInt(minutesSelect.value);
@@ -725,9 +715,6 @@
                     forecastTitle.textContent = formatDateForDisplay(targetDate);
                 }
                 
-                // Log the date being requested for debugging
-                console.log("Fetching weather for date:", formattedDate);
-                
                 // Updated coordinates for Mission Bay, San Francisco
                 const response = await axios.get(`https://api.open-meteo.com/v1/forecast?latitude=37.7749&longitude=-122.3890&hourly=temperature_2m,cloudcover,windspeed_10m,precipitation_probability&timezone=America/Los_Angeles&start_date=${formattedDate}&end_date=${formattedDate}&temperature_unit=fahrenheit`);
                 
@@ -755,6 +742,39 @@
                 updateBestSwimTime(filteredData);
             } catch (error) {
                 console.error('Error fetching weather data:', error);
+            }
+        }
+
+        async function fetch16DayForecast() {
+            try {
+                const now = new Date();
+                const endDate = new Date(now);
+                endDate.setDate(endDate.getDate() + 15); // 16 days total (0-15)
+                
+                // Format dates for API
+                const startDateFormatted = formatDate(now);
+                const endDateFormatted = formatDate(endDate);
+                
+                console.log(`Fetching 16-day forecast from ${startDateFormatted} to ${endDateFormatted}`);
+                
+                // Get coordinates set for San Francisco Mission Bay
+                const response = await axios.get(`https://api.open-meteo.com/v1/forecast?latitude=37.7749&longitude=-122.3890&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=America/Los_Angeles&start_date=${startDateFormatted}&end_date=${endDateFormatted}&temperature_unit=fahrenheit`);
+                
+                const data = response.data;
+                
+                if (data.daily && data.daily.time && data.daily.weathercode) {
+                    updateWeatherCalendar(data.daily);
+                    
+                    // Update date picker max value based on available forecast data
+                    if (data.daily.time.length > 0) {
+                        const lastAvailableDate = data.daily.time[data.daily.time.length - 1];
+                        datePicker.max = lastAvailableDate;
+                        console.log(`Updated date picker max to ${lastAvailableDate}`);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching 16-day forecast:', error);
+                document.getElementById('weather-calendar').innerHTML = '<p class="col-span-full text-center">Unable to fetch weather forecast calendar. Please try again later.</p>';
             }
         }
 
@@ -1005,6 +1025,96 @@
 
             document.getElementById('best-time-info-1').innerHTML = createInfoList(bestTime1);
             document.getElementById('best-time-info-2').innerHTML = createInfoList(bestTime2);
+        }
+
+        function updateWeatherCalendar(dailyData) {
+            const calendarContainer = document.getElementById('weather-calendar');
+            calendarContainer.innerHTML = '';
+            
+            // Map weather codes to emojis and descriptions
+            const weatherEmojis = {
+                0: { emoji: '☀️', description: 'Clear sky' },
+                1: { emoji: '🌤️', description: 'Mainly clear' },
+                2: { emoji: '⛅', description: 'Partly cloudy' },
+                3: { emoji: '☁️', description: 'Overcast' },
+                45: { emoji: '🌫️', description: 'Fog' },
+                48: { emoji: '🌫️', description: 'Depositing rime fog' },
+                51: { emoji: '🌦️', description: 'Light drizzle' },
+                53: { emoji: '🌦️', description: 'Moderate drizzle' },
+                55: { emoji: '🌧️', description: 'Dense drizzle' },
+                56: { emoji: '🌨️', description: 'Light freezing drizzle' },
+                57: { emoji: '🌨️', description: 'Dense freezing drizzle' },
+                61: { emoji: '🌧️', description: 'Slight rain' },
+                63: { emoji: '🌧️', description: 'Moderate rain' },
+                65: { emoji: '🌧️', description: 'Heavy rain' },
+                66: { emoji: '🌨️', description: 'Light freezing rain' },
+                67: { emoji: '🌨️', description: 'Heavy freezing rain' },
+                71: { emoji: '❄️', description: 'Slight snow fall' },
+                73: { emoji: '❄️', description: 'Moderate snow fall' },
+                75: { emoji: '❄️', description: 'Heavy snow fall' },
+                77: { emoji: '❄️', description: 'Snow grains' },
+                80: { emoji: '🌦️', description: 'Slight rain showers' },
+                81: { emoji: '🌧️', description: 'Moderate rain showers' },
+                82: { emoji: '🌧️', description: 'Violent rain showers' },
+                85: { emoji: '🌨️', description: 'Slight snow showers' },
+                86: { emoji: '🌨️', description: 'Heavy snow showers' },
+                95: { emoji: '⛈️', description: 'Thunderstorm' },
+                96: { emoji: '⛈️', description: 'Thunderstorm with slight hail' },
+                99: { emoji: '⛈️', description: 'Thunderstorm with heavy hail' },
+            };
+            
+            // Create a calendar cell for each day
+            for (let i = 0; i < dailyData.time.length && i < 16; i++) {
+                const dateStr = dailyData.time[i];
+                const weatherCode = dailyData.weathercode[i];
+                const maxTemp = dailyData.temperature_2m_max[i];
+                const minTemp = dailyData.temperature_2m_min[i];
+                const precipProb = dailyData.precipitation_probability_max[i];
+                
+                const weatherInfo = weatherEmojis[weatherCode] || { emoji: '❓', description: 'Unknown' };
+                
+                // Create date object to get day and month
+                const dateObj = new Date(dateStr);
+                const dayOfMonth = dateObj.getDate();
+                const month = dateObj.toLocaleString('default', { month: 'short' });
+                const dayOfWeek = getDayOfWeek(dateObj).substring(0, 3);
+                
+                // Create calendar cell
+                const cell = document.createElement('div');
+                cell.className = 'bg-gray-50 rounded p-2 text-center hover:bg-gray-100 cursor-pointer';
+                cell.dataset.date = dateStr; // Store date for selection highlighting
+                
+                // Highlight today
+                if (formatDate(dateObj) === formatDate(new Date())) {
+                    cell.className += ' border-2 border-blue-500';
+                }
+                
+                // Highlight selected date
+                if (selectedDate && formatDate(dateObj) === formatDate(selectedDate)) {
+                    cell.className = cell.className.replace('border-blue-500', '');
+                    cell.className += ' border-2 border-green-500';
+                }
+                
+                cell.innerHTML = `
+                    <div class="text-xs font-semibold">${dayOfWeek}, ${month} ${dayOfMonth}</div>
+                    <div class="text-3xl my-1" title="${weatherInfo.description}">${weatherInfo.emoji}</div>
+                    <div class="text-xs">
+                        <span class="text-red-500">${Math.round(maxTemp)}°F</span> / 
+                        <span class="text-blue-500">${Math.round(minTemp)}°F</span>
+                    </div>
+                    <div class="text-xs ${precipProb > 30 ? 'text-blue-600 font-semibold' : 'text-gray-500'}">
+                        ${precipProb}% 💧
+                    </div>
+                `;
+                
+                // Add click handler to go to that date
+                cell.addEventListener('click', () => {
+                    datePicker.value = dateStr;
+                    handleDateChange();
+                });
+                
+                calendarContainer.appendChild(cell);
+            }
         }
 
         window.addEventListener('resize', () => {
