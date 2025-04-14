@@ -967,7 +967,30 @@
                 const minutes = time.getMinutes().toString().padStart(2, '0');
                 const ampm = hours >= 12 ? 'pm' : 'am';
                 const hours12 = hours % 12 || 12;
-                const formattedTime = `${hours12}:${minutes}${ampm}`;
+                
+                // Create the formatted time with day information
+                let formattedTime = `${hours12}:${minutes}${ampm}`;
+                
+                // Add day information
+                const today = new Date();
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                
+                // Format today and tomorrow dates for comparison
+                const todayStr = formatDate(today);
+                const tomorrowStr = formatDate(tomorrow);
+                const timeStr = formatDate(time);
+                
+                if (timeStr === todayStr) {
+                    formattedTime += ' Today';
+                } else if (timeStr === tomorrowStr) {
+                    formattedTime += ' Tomorrow';
+                } else {
+                    // Use month and day for other days
+                    const month = time.toLocaleString('default', { month: 'short' });
+                    const day = time.getDate();
+                    formattedTime += ` on ${month} ${day}`;
+                }
 
                 const windSpeedMph = (data.windSpeed[i] * 0.621371).toFixed(1);
 
