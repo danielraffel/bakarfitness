@@ -217,6 +217,28 @@
     <script>
         // Helper functions
         
+        // Gym business hours configuration
+        const GYM_HOURS = {
+            'Monday': { open: 6, close: 21 }, // 6:00 AM - 9:00 PM
+            'Tuesday': { open: 6, close: 21 },
+            'Wednesday': { open: 6, close: 21 },
+            'Thursday': { open: 6, close: 21 },
+            'Friday': { open: 6, close: 21 },
+            'Saturday': { open: 8, close: 18 }, // 8:00 AM - 6:00 PM
+            'Sunday': { open: 8, close: 18 }
+        };
+        
+        function getGymHours(date) {
+            const dayName = getDayOfWeek(date);
+            return GYM_HOURS[dayName];
+        }
+        
+        function isGymOpen(date) {
+            const hours = getGymHours(date);
+            const hour = date.getHours();
+            return hour >= hours.open && hour < hours.close;
+        }
+        
         function getSwimmingTimeDiff() {
             return localStorage.getItem('swimmingTimeDiff_bakar') || '0h0m';
         }
@@ -857,9 +879,11 @@
                 const windSpeed = data.hourly.windspeed_10m;
                 const precipProb = data.hourly.precipitation_probability;
 
+                const gymHours = getGymHours(targetDate);
                 const filteredData = times.reduce((acc, time, index) => {
                     const hour = time.getHours();
-                    if (hour >= 5 && hour <= 21) {  // 5am to 9pm
+                    // Filter based on gym hours with a buffer (show 1 hour before open to 1 hour after close for context)
+                    if (hour >= Math.max(0, gymHours.open - 1) && hour <= Math.min(23, gymHours.close)) {
                         acc.times.push(time);
                         acc.temperatures.push(temperatures[index]);
                         acc.cloudCover.push(cloudCover[index]);
@@ -1162,10 +1186,22 @@
 
         function updateBestSwimTime(data) {
             let scores = [];
+            const now = new Date();
+            const currentHour = now.getHours();
+            const isToday = formatDate(selectedDate) === formatDate(now);
 
             for (let i = 0; i < data.times.length; i++) {
-                const hour = data.times[i].getHours();
-                if (hour >= 6 && hour <= 20) {
+                const time = data.times[i];
+                const hour = time.getHours();
+                const gymHours = getGymHours(selectedDate);
+                
+                // Check if gym is open at this time
+                if (hour >= gymHours.open && hour < gymHours.close) {
+                    // For today, only include times that are current hour or later
+                    if (isToday && hour < currentHour) {
+                        continue;
+                    }
+                    
                     const tempScore = data.temperatures[i] * 2;
                     const rainScore = 100 - data.precipProb[i];
                     const cloudScore = (100 - data.cloudCover[i]) / 2;
@@ -1178,16 +1214,21 @@
 
             scores.sort((a, b) => b.score - a.score);
 
-            // Handle case when there aren't enough data points
-            if (scores.length < 2) {
-                document.getElementById('best-time-info-1').innerHTML = '<li>Not enough data for this date</li>';
-                document.getElementById('best-time-info-2').innerHTML = '<li>Not enough data for this date</li>';
+            // Handle case when there aren't enough data points or gym is closed
+            if (scores.length === 0) {
+                const message = isToday ? '<li>The best times to swim today have passed</li>' : '<li>No swim times available during gym hours</li>';
+                document.getElementById('best-time-info-1').innerHTML = message;
+                document.getElementById('best-time-info-2').innerHTML = '<li></li>';
+                return;
+            } else if (scores.length === 1) {
+                // Only one valid time slot
+                const bestTime1 = scores[0].time;
+                document.getElementById('best-time-info-1').innerHTML = createInfoList(bestTime1);
+                document.getElementById('best-time-info-2').innerHTML = '<li>No additional times available</li>';
                 return;
             }
 
-            const bestTime1 = scores[0].time;
-            const bestTime2 = scores[1].time;
-
+            // Define createInfoList function to be accessible from early return blocks
             function createInfoList(time) {
                 const i = data.times.findIndex(t => t.getTime() === time.getTime());
                 const hours = time.getHours();
@@ -1217,6 +1258,9 @@
                     <li>🌬️ ${windSpeedMph} mph</li>
                 `;
             }
+
+            const bestTime1 = scores[0].time;
+            const bestTime2 = scores[1].time;
 
             document.getElementById('best-time-info-1').innerHTML = createInfoList(bestTime1);
             document.getElementById('best-time-info-2').innerHTML = createInfoList(bestTime2);
